@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sensory Web — Accessible Home</title>
+  <style>
+    :root {
+      --bg: #0b0d13;
+      --card-bg: rgba(22, 25, 37, 0.85);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.35);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 20%, #171b26 0%, var(--bg) 70%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      overflow-x: hidden;
+    }
+    .container {
+      max-width: 840px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+    .header {
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+    h1 {
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 580px;
+      line-height: 1.5;
+    }
+    /* Voice Orb Visualizer */
+    .voice-orb-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .voice-orb {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 40px var(--accent-glow);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .voice-orb:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 50px rgba(56, 189, 248, 0.55);
+    }
+    .voice-orb.is-listening {
+      background: linear-gradient(135deg, #dc2626, #ef4444);
+      box-shadow: 0 0 50px rgba(239, 68, 68, 0.6);
+      animation: pulse-ring 1.4s ease-out infinite;
+    }
+    .voice-orb.is-thinking {
+      background: linear-gradient(135deg, #2563eb, #60a5fa);
+      box-shadow: 0 0 50px rgba(96, 165, 250, 0.6);
+    }
+    .voice-orb.is-speaking {
+      background: linear-gradient(135deg, #059669, #34d178);
+      box-shadow: 0 0 50px rgba(52, 209, 120, 0.6);
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+      70% { box-shadow: 0 0 0 24px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .voice-orb svg {
+      width: 44px;
+      height: 44px;
+      color: #fff;
+    }
+    .voice-status-text {
+      font-size: 15px;
+      font-weight: 500;
+      color: #e2e8f0;
+      text-align: center;
+    }
+    .voice-status-text kbd {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 13px;
+      color: #fff;
+    }
+    /* Search Bar */
+    .search-bar-wrapper {
+      width: 100%;
+      max-width: 640px;
+      position: relative;
+    }
+    .search-bar {
+      width: 100%;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 14px 24px;
+      padding-right: 110px;
+      font-size: 16px;
+      color: #fff;
+      outline: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+    .search-bar:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow), 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+    .btn-search {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-search:hover {
+      background: #0369a1;
+    }
+    /* Quick Access Tiles */
+    .tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .tile {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      color: #fff;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .tile:hover, .tile:focus {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.15);
+      outline: none;
+    }
+    .tile-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .tile-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .tile-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .footer-help {
+      margin-top: 16px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .footer-help strong {
+      color: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">
+        <span class="dot"></span>
+        Voice AI Active
+      </div>
+      <h1>Sensory Web Portal</h1>
+      <p class="subtitle">An accessible, voice-first gateway designed for blind and visually impaired users. Speak any website, command, or search naturally.</p>
+    </div>
+
+    <!-- Voice Orb Visualizer -->
+    <div class="voice-orb-wrapper">
+      <div id="voice-orb" class="voice-orb is-listening" role="button" tabindex="0" title="Click or Press Alt+X to Speak" aria-label="Microphone active. Click to toggle.">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+      <div class="voice-status-text" id="voice-status-text">
+        Listening… Speak your destination or question (<kbd>Alt+X</kbd> to toggle • <kbd>Esc</kbd> to stop)
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-bar-wrapper">
+      <form id="search-form">
+        <input type="text" id="search-input" class="search-bar" placeholder="Say 'Search for...' or type here..." aria-label="Search the web or enter website URL">
+        <button type="submit" class="btn-search">Search</button>
+      </form>
+    </div>
+
+    <!-- Accessible Quick Tiles -->
+    <div class="tiles-grid" role="navigation" aria-label="Quick Websites">
+      <!-- YouTube -->
+      <a href="https://www.youtube.com" class="tile" id="tile-youtube" role="button" tabindex="0">
+        <div class="tile-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">▶</div>
+        <div class="tile-title">YouTube</div>
+        <div class="tile-desc">Explore feeds, play music & videos</div>
+      </a>
+
+      <!-- Wikipedia -->
+      <a href="https://www.wikipedia.org" class="tile" id="tile-wikipedia" role="button" tabindex="0">
+        <div class="tile-icon" style="background: rgba(255, 255, 255, 0.1); color: #fff;">W</div>
+        <div class="tile-title">Wikipedia</div>
+        <div class="tile-desc">Free encyclopedia of knowledge</div>
+      </a>
+
+      <!-- Google Search -->
+      <a href="https://www.google.com" class="tile" id="tile-google" role="button" tabindex="0">
+        <div class="tile-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">G</div>
+        <div class="tile-title">Google</div>
+        <div class="tile-desc">Search articles, news & answers</div>
+      </a>
+
+      <!-- Accessible Test Portal -->
+      <a href="#" id="tile-demo" class="tile" role="button" tabindex="0">
+        <div class="tile-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">★</div>
+        <div class="tile-title">Test Playground</div>
+        <div class="tile-desc">Interactive feed, video & form tests</div>
+      </a>
+    </div>
+
+    <div class="footer-help">
+      Voice Commands: Say <strong>"Open YouTube"</strong>, <strong>"Open Wikipedia in a new tab"</strong>, or <strong>"Search for NASA news"</strong>.
+    </div>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Sensory Web — Voice AI Navigator for the Blind",
+  "version": "1.2.0",
+  "description": "Spatial AI Web Navigator for blind and visually impaired users. Press Alt+X to talk, Alt+O to describe page.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["test-accessible-site.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "commands": {
+    "toggle-voice-navigator": {
+      "suggested_key": {
+        "default": "Alt+X"
+      },
+      "description": "Start or stop talking to Sensory Voice Navigator"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
