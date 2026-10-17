@@ -12,7 +12,7 @@ load_dotenv()
 app = FastAPI(
     title="Sensory Web — Autonomous Voice AI Navigator for the Blind",
     description="Backend integrating SLNG Deepgram Nova-3 English STT and Gemini Spatial Reasoning for Blind Users",
-    version="1.2.0"
+    version="1.3.0"
 )
 
 app.add_middleware(
@@ -53,23 +53,34 @@ You will receive:
 3. Recent conversation history between you and the user.
 
 CRITICAL INSTRUCTIONS FOR SENSORY SPOKEN GUIDANCE:
-1. PROACTIVE SPATIAL ORIENTATION:
+
+1. ABSOLUTE PRIORITY FOR "PLAY", "PLAY VIDEO", AND ORDINAL SELECTION:
+   - When the user says "play video 1", "play 1", "video 1", "play first video", "play the first one", "play video", "play", or names any video title:
+     - NEVER TYPE INTO A SEARCH BOX! This is NEVER a search command under any circumstances.
+     - If the page has `feed_cards` (e.g. YouTube feed, search results, video list):
+       - "play video 1" / "play 1" / "first video" / "play video" / "play" -> CLICK the first video card (feed_cards[0].ai_id). Verbal response: "Playing [first video title] by [channel] now."
+       - "play video 2" / "play 2" / "second video" -> CLICK feed_cards[1].ai_id. Verbal response: "Playing [second video title] by [channel] now."
+       - "play video 3" / "play 3" / "third video" -> CLICK feed_cards[2].ai_id. Verbal response: "Playing [third video title] by [channel] now."
+       - "play [title/topic]" -> Find the matching feed card and CLICK its ai_id.
+     - If an active video player or <video> element exists on the page (e.g. on YouTube watch page):
+       - Return action `MEDIA_CONTROL` with `value`: "play". Verbal response: "Playing video."
+     - If NO video cards or player exist on the page:
+       - Return action `NAVIGATE` with `value`: "https://www.youtube.com". Verbal response: "Opening YouTube so you can watch videos."
+
+2. SEARCH VS PLAY GUARDRAILS:
+   - ONLY use the TYPE action with a search box if the user EXPLICITLY uses clear search command verbs:
+     - Examples of search commands: "search for cat videos", "find lofi music", "look up recipes", "type lofi in search".
+   - If the user query does NOT explicitly start with a search verb, DO NOT type into the search box!
+   - If the user's voice input is unclear, garbled, or sounds like ambient noise:
+     - DO NOT type random words into the search box!
+     - Instead, return action `NONE` and ask: "I didn't quite catch that. Would you like to play video 1, or search for something?"
+
+3. PROACTIVE SPATIAL ORIENTATION:
    - When describing a page, auto-describing on load, or answering "where am I?", "what is this page?", "describe my feed":
      - Clearly state the site name and page title.
      - Describe the physical layout in 1-2 brief sentences (e.g. "You are on YouTube's home feed. Across the top is the search bar, on the left is the navigation sidebar, and the center is populated with video recommendations.").
      - Highlight top 3-5 primary items with clear numbers (e.g. "Here are the top 3 videos: 1. [Title] by [Channel], 2. [Title], 3. [Title].").
-     - Suggest clear next actions: "Say 'play number 1', 'search for music', or 'scroll down'."
-
-2. RESOLVING ORDINAL & NATURAL REFERENCES:
-   - When the user says "play the first one", "click the second video", "open the third link", "play the rain sounds":
-     - Match it against the feed items or elements from the DOM or recent conversation.
-     - Return the action to CLICK or PLAY that specific element using its `ai_id`.
-
-3. DATA ENTRY & FORM FILLING:
-   - When user dictates text into inputs or searches:
-     - For search: TYPE action with `target_id` of the search box, `value` of the search query.
-     - For form fields: TYPE action with `target_id` of the matching input field.
-     - Confirm verbally: "Entered [value] into [label]. What next?"
+     - Suggest clear next actions: "Say 'play video 1', 'search for music', or 'scroll down'."
 
 4. BROWSER NAVIGATION & ACTIONS:
    - When user says "open youtube in a new tab", "open a new tab", "open google in a new tab":
@@ -154,7 +165,7 @@ async def health_check():
         "slng_key_configured": bool(SLNG_API_KEY),
         "llm_key_configured": bool(GEMINI_API_KEY),
         "llm_model": GEMINI_MODEL,
-        "version": "1.2.0"
+        "version": "1.3.0"
     }
 
 
@@ -170,13 +181,16 @@ async def voice_navigate(
     # Priority 1: Direct text command (e.g. initial auto-describe or text navigation)
     if text_command and text_command.strip():
         user_transcript = text_command.strip()
+        print(f"\n[Sensory Web] Direct Text Command: '{user_transcript}'", flush=True)
     # Priority 2: Audio file from microphone transcribed via SLNG Nova-3
     elif audio is not None:
         audio_bytes = await audio.read()
         if audio_bytes and len(audio_bytes) >= 100:
             user_transcript = transcribe_with_slng(audio_bytes, audio.filename, audio.content_type)
+            print(f"\n[Sensory Web] Nova-3 Voice Transcript: '{user_transcript}'", flush=True)
 
     if not user_transcript or not user_transcript.strip():
+        print("[Sensory Web] STT: No speech detected.", flush=True)
         return {
             "transcript": "",
             "spoken_response": "I didn't hear anything. Press Alt and X to speak.",
@@ -202,6 +216,9 @@ async def voice_navigate(
             "spoken_response": "I had trouble understanding the page structure. What would you like to do?",
             "action": {"type": "NONE", "target_id": None, "value": None}
         }
+
+    print(f"[Sensory Web] Decision Action: {agent_decision.get('action')}", flush=True)
+    print(f"[Sensory Web] Spoken Response: '{agent_decision.get('spoken_response')}'\n", flush=True)
 
     return {
         "transcript": user_transcript,

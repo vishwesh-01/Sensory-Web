@@ -30,7 +30,7 @@
 
   const STORAGE_KEY_VOICE_MODE = "sensory_voice_mode_active";
   const SILENCE_THRESHOLD_MS = 1800; // 1.8 seconds of silence to auto-submit
-  const VOLUME_THRESHOLD = 0.035;    // RMS audio volume threshold for speech
+  const VOLUME_THRESHOLD = 0.012;    // RMS audio volume threshold for speech (clean conversational voice)
 
   // =========================================================================
   // 2. ACOUSTIC EARCONS (Web Audio API Synthesizer)
@@ -452,9 +452,13 @@
       const title = (titleEl.textContent || titleEl.getAttribute("title") || "").trim();
       if (!title || title.length < 3) return;
 
-      let aiId = card.getAttribute("data-ai-id");
+      // Identify the actual clickable link tag (e.g. #video-title-link or a[href])
+      const linkEl = card.querySelector("a#video-title-link, #video-title-link, a[href*='watch'], a[href]") || titleEl;
+
+      let aiId = linkEl.getAttribute("data-ai-id") || card.getAttribute("data-ai-id");
       if (!aiId) {
         aiId = `el-${globalIdCounter++}`;
+        linkEl.setAttribute("data-ai-id", aiId);
         card.setAttribute("data-ai-id", aiId);
         titleEl.setAttribute("data-ai-id", aiId);
       }
@@ -640,12 +644,16 @@
 
   function simulateClick(el) {
     el.focus();
+    // If element is a card container or contains an anchor link, target the anchor directly
+    const anchor = el.tagName.toLowerCase() === "a" ? el : el.querySelector("a[href]") || el.closest("a[href]");
+    const targetEl = anchor || el;
+
     const opts = { bubbles: true, cancelable: true, view: window };
-    el.dispatchEvent(new PointerEvent("pointerdown", opts));
-    el.dispatchEvent(new MouseEvent("mousedown", opts));
-    el.dispatchEvent(new PointerEvent("pointerup", opts));
-    el.dispatchEvent(new MouseEvent("mouseup", opts));
-    el.click();
+    targetEl.dispatchEvent(new PointerEvent("pointerdown", opts));
+    targetEl.dispatchEvent(new MouseEvent("mousedown", opts));
+    targetEl.dispatchEvent(new PointerEvent("pointerup", opts));
+    targetEl.dispatchEvent(new MouseEvent("mouseup", opts));
+    targetEl.click();
   }
 
   function executeBrowserAction(action) {
@@ -829,6 +837,8 @@
     analyserNode = null;
   }
 
+  let maxRecTimer = null;
+
   async function startListening() {
     if (!isVoiceMode || isRecording || isProcessing) return;
     isRecording = true;
@@ -838,8 +848,29 @@
     playEarcon("start_listen");
 
     try {
-      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(audioStream);
+      const audioConstraints = {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      };
+
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+
+      // Delay recording start by 220ms so the 880Hz start earcon is NOT recorded into mic!
+      await new Promise((res) => setTimeout(res, 220));
+
+      if (!isRecording) {
+        if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+
+      mediaRecorder = new MediaRecorder(audioStream, { mimeType });
       audioChunks = [];
 
       mediaRecorder.ondataavailable = (event) => {
@@ -847,6 +878,10 @@
       };
 
       mediaRecorder.onstop = async () => {
+        if (maxRecTimer) {
+          clearTimeout(maxRecTimer);
+          maxRecTimer = null;
+        }
         stopVadMonitoring();
         if (audioStream) {
           audioStream.getTracks().forEach((t) => t.stop());
@@ -859,7 +894,7 @@
         isProcessing = true;
         setHudStatus("thinking");
 
-        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+        const audioBlob = new Blob(audioChunks, { type: mimeType });
         const audioBase64 = await blobToBase64(audioBlob);
         const domSnapshot = extractAccessibleDOM();
 
@@ -877,10 +912,24 @@
         );
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       startVadMonitoring(audioStream);
+
+      // Safety watchdog: max 9 seconds of recording so it never hangs in room noise
+      if (maxRecTimer) clearTimeout(maxRecTimer);
+      maxRecTimer = setTimeout(() => {
+        if (isRecording) {
+          console.log("[SNV] Max recording duration reached (9s). Auto-submitting...");
+          stopListening();
+        }
+      }, 9000);
+
     } catch (err) {
       isRecording = false;
+      if (maxRecTimer) {
+        clearTimeout(maxRecTimer);
+        maxRecTimer = null;
+      }
       setHudStatus("idle");
       playEarcon("error");
       speak("Microphone permission is required for voice navigation. Please allow microphone access.");

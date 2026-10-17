@@ -3,7 +3,7 @@
 
   const STORAGE_KEY_VOICE_MODE = "sensory_voice_mode_active";
   const SILENCE_THRESHOLD_MS = 1800;
-  const VOLUME_THRESHOLD = 0.035;
+  const VOLUME_THRESHOLD = 0.012;
 
   let isRecording = false;
   let isProcessing = false;
@@ -228,6 +228,8 @@
     analyserNode = null;
   }
 
+  let maxRecTimer = null;
+
   async function startListening() {
     if (isRecording || isProcessing) return;
     isRecording = true;
@@ -237,8 +239,29 @@
     playEarcon("start_listen");
 
     try {
-      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(audioStream);
+      const audioConstraints = {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      };
+
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+
+      // Delay recording start by 220ms so start earcon tone is NOT in mic audio
+      await new Promise((res) => setTimeout(res, 220));
+
+      if (!isRecording) {
+        if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+
+      mediaRecorder = new MediaRecorder(audioStream, { mimeType });
       audioChunks = [];
 
       mediaRecorder.ondataavailable = (event) => {
@@ -246,6 +269,10 @@
       };
 
       mediaRecorder.onstop = async () => {
+        if (maxRecTimer) {
+          clearTimeout(maxRecTimer);
+          maxRecTimer = null;
+        }
         stopVadMonitoring();
         if (audioStream) {
           audioStream.getTracks().forEach((t) => t.stop());
@@ -256,7 +283,7 @@
         isProcessing = true;
         setOrbStatus("thinking");
 
-        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+        const audioBlob = new Blob(audioChunks, { type: mimeType });
         const audioBase64 = await blobToBase64(audioBlob);
         const domSnapshot = JSON.stringify({
           title: "Sensory Web New Tab Portal",
@@ -284,10 +311,23 @@
         );
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       startVadMonitoring(audioStream);
+
+      if (maxRecTimer) clearTimeout(maxRecTimer);
+      maxRecTimer = setTimeout(() => {
+        if (isRecording) {
+          console.log("[SNV NewTab] Max recording duration reached (9s). Auto-submitting...");
+          stopListening();
+        }
+      }, 9000);
+
     } catch (err) {
       isRecording = false;
+      if (maxRecTimer) {
+        clearTimeout(maxRecTimer);
+        maxRecTimer = null;
+      }
       setOrbStatus("idle");
       playEarcon("error");
       speak("Microphone access is required on the New Tab page. Please click Allow if prompted.");
